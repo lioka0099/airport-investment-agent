@@ -4,6 +4,9 @@ Chat (or talk) with an agent that ranks and explains US airport renovation oppor
 public BTS and FAA data. Every number in an answer is computed in code and cited, and a second AI
 from a different provider checks the conclusions before the answer is shown.
 
+**Live demo:** https://airport-investment-agent-2rnc9cgsamvrtnubz5rk9q.streamlit.app/ (it may
+take a minute to wake up if nobody has used it recently).
+
 **Design document:** [DESIGN.md](DESIGN.md): scoring methodology, key tradeoffs, where and how AI
 is used.
 

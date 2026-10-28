@@ -1,5 +1,7 @@
 # Airport Investment Intelligence Agent: Design
 
+**Live demo:** https://airport-investment-agent-2rnc9cgsamvrtnubz5rk9q.streamlit.app/
+
 **Data:** BTS T-100 (2019-01 to 2026-07) and BTS On-Time Performance for the latest 12 months
 (2025-08 to 2026-07), OurAirports for names and regions, and the live FAA NAS Status feed.
 The exact periods are in `snapshot/manifest.json`.
