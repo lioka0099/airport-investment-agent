@@ -1,0 +1,13 @@
+notes/
+plans/
+.superpowers/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.env
+.streamlit/secrets.toml
+data_cache/
+chat_history.sqlite*
+evals/reports/
