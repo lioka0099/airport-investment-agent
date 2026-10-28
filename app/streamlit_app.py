@@ -40,6 +40,9 @@ rank holds when each weight moves ±10%.
 The score ranks opportunity, not financial return.
 """
 
+PROVIDERS_DOWN = "All AI providers are unavailable right now. Please try again in a minute."
+TURN_FAILED = "Something went wrong while answering. Try again or rephrase the question."
+
 
 def load_secrets() -> None:
     try:
@@ -64,6 +67,7 @@ def init_session() -> None:
     st.session_state.setdefault("history", [])
     st.session_state.setdefault("user_messages", 0)
     st.session_state.setdefault("pending", None)
+    st.session_state.setdefault("failed", None)
     for c, w in config.WEIGHTS.items():
         st.session_state.setdefault(f"w_{c}", w)
 
@@ -81,6 +85,7 @@ def reset_weights() -> None:
 def new_chat() -> None:
     st.session_state.thread_id = str(uuid.uuid4())
     st.session_state.history = []
+    st.session_state.failed = None
 
 
 def sidebar(manifest: dict) -> None:
@@ -150,6 +155,7 @@ def run_turn(graph, question: str) -> None:
         st.warning(str(exc))
         return
     st.session_state.user_messages += 1
+    st.session_state.failed = None
     st.session_state.history.append({"role": "user", "text": inp["question"]})
     with st.chat_message("user"):
         st.markdown(view.md_safe(inp["question"]))
@@ -168,10 +174,12 @@ def run_turn(graph, question: str) -> None:
             if not isinstance(exc, AllProvidersFailed):
                 log.exception("Turn failed")
             st.session_state.history.pop()  # no dangling question after a failed turn
-            st.error("All AI providers are unavailable right now. Please try again in a minute."
-                     if isinstance(exc, AllProvidersFailed) else
-                     "Something went wrong while answering. Try rephrasing the question.")
-            return
+            # kept in state so the message survives reruns until the next question
+            st.session_state.failed = {
+                "question": question,
+                "error": PROVIDERS_DOWN if isinstance(exc, AllProvidersFailed) else TURN_FAILED,
+            }
+            st.rerun()
         show_answer(answer, key=f"a{len(st.session_state.history)}")
     st.session_state.history.append({"role": "assistant", "answer": answer})
 
@@ -199,6 +207,11 @@ def main() -> None:
     typed = st.chat_input("Ask about US airports…", max_chars=config.MAX_INPUT_CHARS)
     question = typed or st.session_state.pending
     st.session_state.pending = None
+
+    if (failed := st.session_state.failed) and not question:
+        with st.chat_message("assistant"):
+            st.error(failed["error"])
+            st.button("Try again", key="retry", on_click=ask, args=(failed["question"],))
 
     if not st.session_state.history and not question:
         st.markdown("**Try one of these:**")
