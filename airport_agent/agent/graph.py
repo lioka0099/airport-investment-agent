@@ -37,6 +37,7 @@ from airport_agent.security.sanitize import clean_user_input, filter_output
 class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
     question: str
+    by_voice: bool
     weights: dict | None
     facts: dict[str, dict]
     findings: list[dict]
@@ -52,10 +53,11 @@ class AgentState(TypedDict):
     answer: dict | None
 
 
-def turn_input(question: str, weights: dict | None = None) -> dict:
+def turn_input(question: str, weights: dict | None = None, by_voice: bool = False) -> dict:
     """Input for one user turn. Messages accumulate; every other field restarts."""
     question = clean_user_input(question)
     return {"messages": [HumanMessage(question)], "question": question, "weights": weights,
+            "by_voice": by_voice,
             "facts": {}, "findings": [], "assumptions": [], "tool_data": [],
             "tool_calls_used": 0, "ground_attempts": 0, "review_rounds": 0,
             "review_issues": [], "provider_used": None, "draft": None,
@@ -91,7 +93,7 @@ def build_graph(router, tools: list, checkpointer, manifest: dict):
     def agent(state: AgentState) -> dict:
         get_stream_writer()({"type": "stage", "stage": "thinking"})
         left = config.TOOL_BUDGET - state["tool_calls_used"]
-        system = SystemMessage(prompts.build_system(manifest, left))
+        system = SystemMessage(prompts.build_system(manifest, left, state.get("by_voice", False)))
         msg, provider = router.agent_invoke([system, *_history(state)], tools)
         if msg.tool_calls and left <= 0:
             # Drop the calls: an AIMessage with unanswered tool calls breaks the next request.
@@ -175,6 +177,7 @@ def build_graph(router, tools: list, checkpointer, manifest: dict):
         return {"answer": {
             "tldr": filter_output(parsed.tldr, allowed),
             "body": filter_output(parsed.body, allowed),
+            "spoken": filter_output(parsed.spoken, allowed),
             "follow_ups": [filter_output(f, allowed) for f in parsed.follow_ups],
             "citations": draft["citations"], "verification": state["verification"],
             "assumptions": [filter_output(a, allowed) for a in state["assumptions"]],

@@ -91,15 +91,17 @@ def run_case(graph, case: dict) -> dict:
             state = graph.invoke(turn_input(question), run_config(thread))
         failures = check(case, state)
         answer = state["answer"] or {}
-        verification = (answer.get("verification") or {}).get("status")
+        review = answer.get("verification") or {}
+        verification, issues = review.get("status"), review.get("issues", [])
         tools = called_tools(state)
         text = f"{answer.get('tldr', '')}\n{answer.get('body', '')}"  # JSON only, for triage
     except Exception as exc:  # one broken case must not stop the run
         failures, verification, tools = [f"error: {type(exc).__name__}: {exc}"], None, []
+        issues = []
         text = ""
     return {"id": case["id"], "passed": not failures, "failures": failures, "tools": tools,
-            "answer": text,
-            "verification": verification, "seconds": round(time.monotonic() - started, 1)}
+            "answer": text, "verification": verification, "review_issues": issues,
+            "seconds": round(time.monotonic() - started, 1)}
 
 
 def version_stamp() -> dict:
@@ -133,6 +135,10 @@ def write_report(results: list[dict], provider: str) -> Path:
     for r in results:
         lines.append(f"| {r['id']} | {'✅' if r['passed'] else '❌'} | {r['verification']} | "
                      f"{r['seconds']} | {', '.join(r['tools'])} | {'; '.join(r['failures'])} |")
+    if unverified := [r for r in results if r["review_issues"]]:
+        lines += ["", "## Why the reviewer did not verify"]
+        for r in unverified:
+            lines += ["", f"**{r['id']}**", *[f"- {i}" for i in r["review_issues"]]]
     stem.with_suffix(".md").write_text("\n".join(lines) + "\n")
     stem.with_suffix(".json").write_text(json.dumps({**stamp, "provider": provider,
                                                      "results": results}, indent=2))

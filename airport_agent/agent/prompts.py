@@ -76,7 +76,8 @@ Your job is to catch answers that would mislead the analyst, not to make good an
 Blocking issues (put them in "issues"; any blocking issue means the answer is rejected):
 1. A conclusion contradicts or is not supported by the findings or facts (e.g. it calls a
    difference large when the finding says similar, or ranks airports differently from the data).
-2. The answer does not address the question.
+2. The answer does not address the question. A short clarifying question is a valid answer
+   when the question has two reasonable readings that would give different answers.
 3. The data period is missing, or the answer states no assumptions at all. A clarifying
    question or a decline uses no data, so it needs neither.
 4. An orphan number (typed by the writer, not from a fact) is presented as data. Years, counts
@@ -121,9 +122,20 @@ OVER_BUDGET_TEXT = ("TL;DR: I ran out of analysis steps for this question.\n\nPl
 REVIEWER_DOWN = "The reviewer was unavailable, so this answer was not independently checked."
 
 
-def build_system(manifest: dict, tools_left: int) -> str:
+VOICE = """
+Voice: the user asked this out loud and will hear your answer. After the body and before
+FOLLOW-UPS, add a line "SPOKEN:" and then what you would say to a colleague: two to four short,
+natural sentences that answer the question in full, in plain words, with no Markdown, lists,
+tables or links, and at most three numbers (as placeholders, like everywhere else). It is
+heard instead of read, so lead with the answer, then the main reason. For a clarifying question,
+small talk or a decline, SPOKEN is that same short reply said naturally.
+"""
+
+
+def build_system(manifest: dict, tools_left: int, by_voice: bool = False) -> str:
     calls = "tool call" if tools_left == 1 else "tool calls"
     budget = (f"You have {tools_left} {calls} left this turn." if tools_left > 0
               else "No tool calls left: write the final answer now from the results you have.")
-    return SYSTEM.format(period_start=manifest["l12m_start"][:7],
-                         period_end=manifest["l12m_end"][:7], budget=budget)
+    system = SYSTEM.format(period_start=manifest["l12m_start"][:7],
+                           period_end=manifest["l12m_end"][:7], budget=budget)
+    return system + VOICE if by_voice else system

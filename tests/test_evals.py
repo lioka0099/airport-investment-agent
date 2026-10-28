@@ -62,3 +62,17 @@ def test_failed_tool_calls_count_as_called():
     s = state() | {"messages": msgs, "question": "Profile XQZ"}
     assert check({"id": "x", "expect": {"tools": ["airport_profile"]}}, s) == []
     assert check({"id": "x", "expect": {"refuse": True}}, s)  # an earlier turn's call is ignored
+
+
+def test_report_keeps_the_reviewers_reasons(tmp_path, monkeypatch):
+    import json
+
+    from evals import run_evals
+    monkeypatch.setattr(run_evals, "REPORTS", tmp_path)
+    results = [{"id": "pizza", "passed": True, "failures": [], "tools": [], "answer": "",
+                "verification": "unverified", "review_issues": ["No period stated"],
+                "seconds": 1.0}]
+    md = run_evals.write_report(results, "anthropic")
+    assert "**pizza**" in md.read_text() and "- No period stated" in md.read_text()
+    saved = json.loads(md.with_suffix(".json").read_text())
+    assert saved["results"][0]["review_issues"] == ["No period stated"]

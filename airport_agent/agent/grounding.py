@@ -26,6 +26,7 @@ TYPED_UNIT = {
 TO_USER = re.compile(r"(?i)^\W*((do|would) you (want|like)|(shall|should) i\b|want me\b)")
 FOLLOW_UPS = re.compile(r"(?im)^[ \t]*follow-?ups:[ \t]*")  # own line, or a first item after it
 TLDR = re.compile(r"(?i)tl;dr:")
+SPOKEN = re.compile(r"(?im)^[ \t]*spoken:[ \t]*")  # voice turns only
 BULLET = re.compile(r"^\s*[-*•]\s+(.*\S)")
 
 
@@ -34,6 +35,7 @@ class ParsedAnswer:
     tldr: str
     body: str
     follow_ups: list[str]
+    spoken: str = ""
 
 
 @dataclass
@@ -48,6 +50,11 @@ class Rendered:
 
 def parse_answer(text: str) -> ParsedAnswer:
     text = text.strip()
+    spoken = ""
+    if m := SPOKEN.search(text):  # before or after FOLLOW-UPS: models vary
+        f = FOLLOW_UPS.search(text, m.end())
+        end = f.start() if f else len(text)
+        spoken, text = " ".join(text[m.end():end].split()), text[:m.start()] + text[end:]
     follow_ups: list[str] = []
     if len(parts := FOLLOW_UPS.split(text, maxsplit=1)) == 2:
         text, tail = parts
@@ -57,7 +64,7 @@ def parse_answer(text: str) -> ParsedAnswer:
         first, _, rest = body.partition("\n")
         tldr, body = first[m.end():].strip(), rest.strip()
     follow_ups = [q for q in follow_ups if not TO_USER.match(q)]
-    return ParsedAnswer(tldr=tldr, body=body, follow_ups=follow_ups[:3])
+    return ParsedAnswer(tldr=tldr, body=body, follow_ups=follow_ups[:3], spoken=spoken)
 
 
 def missing_refs(text: str, facts: dict[str, dict]) -> list[str]:

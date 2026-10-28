@@ -119,10 +119,19 @@ def ask(text: str) -> None:
     st.session_state.pending = text
 
 
-def show_answer(answer: dict, key: str, follow_ups: bool = False) -> None:
+def written(answer: dict) -> None:
     if answer["tldr"]:
         st.markdown(f"**{view.md_safe(answer['tldr'])}**")
     st.markdown(view.md_safe(answer["body"]))
+
+
+def show_answer(answer: dict, key: str, follow_ups: bool = False) -> None:
+    if spoken := answer.get("spoken"):  # voice turn: show what was heard, the rest on demand
+        st.markdown(view.md_safe(spoken))
+        with st.expander("Full answer"):
+            written(answer)
+    else:
+        written(answer)
     badges = [view.verification_badge(answer["verification"])]
     if conf := view.confidence(answer["tool_data"]):
         badges.append(f"Confidence: {conf}")
@@ -185,7 +194,7 @@ def run_turn(graph, question: str, by_voice: bool = False) -> None:
     if not any(st.session_state[f"w_{c}"] for c in config.WEIGHTS):
         notify("Set at least one weight above zero.")
     try:
-        inp = turn_input(question, current_weights())
+        inp = turn_input(question, current_weights(), by_voice)
     except InputRejected as exc:
         notify(str(exc))
     st.session_state.user_messages += 1
@@ -211,10 +220,10 @@ def run_turn(graph, question: str, by_voice: bool = False) -> None:
             notify(PROVIDERS_DOWN if isinstance(exc, AllProvidersFailed) else TURN_FAILED,
                    retry=question)
         show_answer(answer, key=f"a{len(st.session_state.history)}")
-        if by_voice:  # asked by voice -> answered by voice; small talk has no TL;DR
+        if by_voice:  # asked by voice -> answered by voice, in words written for speech
             try:
-                st.session_state.speak = voice.speak(answer["tldr"] or answer["body"],
-                                                     voice_clients())
+                said = answer.get("spoken") or answer["tldr"] or answer["body"]
+                st.session_state.speak = voice.speak(said, voice_clients())
             except Exception as exc:
                 log.warning("TTS failed: %s", type(exc).__name__)
     st.session_state.history.append({"role": "assistant", "answer": answer})

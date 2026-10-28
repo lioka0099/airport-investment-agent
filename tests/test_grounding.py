@@ -129,3 +129,24 @@ def test_follow_ups_addressed_to_the_user_are_dropped():
 def test_render_does_not_double_the_rank_hash():
     facts = {"BOS.rank": {"value": 15, "unit": "rank", "source": "computed"}}
     assert render("Ranked #{{BOS.rank}}.", facts, MANIFEST).text.startswith("Ranked #15")
+
+
+def test_spoken_section_is_split_from_the_body():
+    p = parse_answer("TL;DR: BOS leads.\n\nBody text.\n\nSPOKEN: So, Boston leads.\n"
+                     "Mostly on demand.\n\nFOLLOW-UPS:\n- Why BOS?")
+    assert p.body == "Body text." and p.spoken == "So, Boston leads. Mostly on demand."
+    assert p.follow_ups == ["Why BOS?"]
+    assert parse_answer("TL;DR: hi\n\nBody.").spoken == ""  # text turns have none
+
+
+def test_voice_instruction_only_on_voice_turns():
+    from airport_agent.agent import prompts
+    manifest = {"l12m_start": "2025-08-01", "l12m_end": "2026-07-31"}
+    assert "SPOKEN:" not in prompts.build_system(manifest, 5)
+    assert "SPOKEN:" in prompts.build_system(manifest, 5, by_voice=True)
+
+
+def test_spoken_after_the_follow_ups_is_still_found():
+    p = parse_answer("TL;DR: LAX or all?\n\nWhy.\n\nFOLLOW-UPS:\n- How busy is LAX?\n\n"
+                     "SPOKEN: Do you mean LAX alone?")
+    assert p.spoken == "Do you mean LAX alone?" and p.follow_ups == ["How busy is LAX?"]
