@@ -62,9 +62,9 @@ LLM_TIMEOUT_S = 45
 CIRCUIT_OPEN_S = 60
 RETRY_AFTER_MAX_S = 5                  # 429 with longer Retry-After -> fall back, don't wait
 LLM_MAX_RETRIES = 2                    # retries per provider for transient errors
-STT_MODEL = "gpt-4o-transcribe"
-TTS_MODEL = "gpt-4o-mini-tts"
-TTS_VOICE = "alloy"
+# Voice: tried in order, the next provider takes over when one fails.
+STT_CHAIN = [("openai", "gpt-4o-transcribe"), ("google", "gemini-3.5-transcribe")]
+TTS_CHAIN = [("openai", "gpt-4o-mini-tts", "alloy"), ("google", "gemini-3.8-flash-tts", "Kore")]
 
 # --- Live FAA status ---
 FAA_STATUS_URL = "https://nasstatus.faa.gov/api/airport-status-information"

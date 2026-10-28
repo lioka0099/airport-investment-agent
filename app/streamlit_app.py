@@ -5,6 +5,7 @@ import os
 import uuid
 
 import streamlit as st
+from google import genai
 from openai import OpenAI
 
 from airport_agent import config
@@ -66,8 +67,11 @@ def resources():
 
 
 @st.cache_resource
-def openai_client() -> OpenAI:
-    return OpenAI(timeout=30, max_retries=1)
+def voice_clients() -> dict:
+    """A client per voice provider that has a key, so the next one can take over."""
+    make = {"openai": lambda: OpenAI(timeout=20, max_retries=0),
+            "google": lambda: genai.Client(http_options={"timeout": 20_000})}
+    return {p: f() for p, f in make.items() if os.environ.get(KEY_ENV[p])}
 
 
 def init_session() -> None:
@@ -168,7 +172,7 @@ def heard(audio) -> str | None:
     if st.session_state.user_messages >= config.SESSION_MAX_MESSAGES:
         return None  # no paid transcription past the limit; run_turn is never reached
     try:
-        return voice.transcribe(audio.getvalue(), openai_client()) or None  # silence -> ""
+        return voice.transcribe(audio.getvalue(), voice_clients()) or None  # silence -> ""
     except Exception as exc:
         log.warning("STT failed: %s", type(exc).__name__)  # type only: may hold key
         return None
@@ -210,7 +214,7 @@ def run_turn(graph, question: str, by_voice: bool = False) -> None:
         if by_voice:  # asked by voice -> answered by voice; small talk has no TL;DR
             try:
                 st.session_state.speak = voice.speak(answer["tldr"] or answer["body"],
-                                                     openai_client())
+                                                     voice_clients())
             except Exception as exc:
                 log.warning("TTS failed: %s", type(exc).__name__)
     st.session_state.history.append({"role": "assistant", "answer": answer})
@@ -233,7 +237,7 @@ def main() -> None:
     pending, st.session_state.pending = st.session_state.pending, None
     value = st.chat_input("Ask about US airports, or tap the mic…", key="chat",
                           max_chars=config.MAX_INPUT_CHARS,
-                          accept_audio=bool(os.environ.get("OPENAI_API_KEY")),
+                          accept_audio=bool(voice_clients()),
                           submit_mode="disable", disabled=pending is not None)
     question, by_voice = pending, False
     if value is not None and getattr(value, "audio", None) is not None:
@@ -252,8 +256,9 @@ def main() -> None:
                 st.markdown(view.md_safe(turn["text"]))
             else:
                 show_answer(turn["answer"], key=f"h{i}", follow_ups=i == last and not question)
-                if i == last and (audio := st.session_state.pop("speak", None)):
-                    st.audio(audio, format="audio/mp3", autoplay=True)
+                if i == last and (spoken := st.session_state.pop("speak", None)):
+                    audio, mime = spoken
+                    st.audio(audio, format=mime, autoplay=True)
 
     idle = st.empty()  # chips and errors: cleared at once while a turn runs
     if not question:
