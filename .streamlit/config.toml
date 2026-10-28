@@ -7,20 +7,20 @@ gatherUsageStats = false
 [client]
 toolbarMode = "minimal"  # no Deploy button or developer menu for analysts
 
-# Airfield palette: concrete apron, navy ink, ATC blue. Signage yellow is used only in the header.
+# Dusk palette: runway lights against a violet evening sky. Fuchsia and amber are accents only.
 [theme]
 base = "light"
-primaryColor = "#1D4F7A"
-backgroundColor = "#F4F6F7"
-secondaryBackgroundColor = "#E5EAEE"
-textColor = "#13212E"
-borderColor = "#CDD5DB"
-linkColor = "#1D4F7A"
-baseRadius = "small"
-# Barlow is modeled on US highway signs; Public Sans is the US government's open typeface.
-headingFont = "Barlow Semi Condensed:https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&display=swap"
-font = "Public Sans:https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600&display=swap"
+primaryColor = "#7C3AED"
+backgroundColor = "#FAF8FF"
+secondaryBackgroundColor = "#F1ECFD"
+textColor = "#1F1535"
+borderColor = "#E0D6F8"
+linkColor = "#6D28D9"
+baseRadius = "large"
+chartCategoricalColors = ["#7C3AED", "#DB2777", "#F59E0B", "#0EA5E9", "#10B981", "#A78BFA"]
+headingFont = "Sora:https://fonts.googleapis.com/css2?family=Sora:wght@600;700&display=swap"
+font = "Plus Jakarta Sans:https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600&display=swap"
 codeFont = "JetBrains Mono:https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&display=swap"
 
 [theme.sidebar]
-backgroundColor = "#E5EAEE"
+backgroundColor = "#F1ECFD"

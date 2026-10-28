@@ -35,19 +35,37 @@ SCORE_NOTE = ("National percentiles among US airports with 500k+ passengers. Wei
               "renormalized to sum to 1. Ranks opportunity, not financial return.")
 
 HEADER_CSS = """<style>
+/* Dusk sky: the title carries the violet-to-fuchsia gradient; amber is the one warm accent. */
 .hdr { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
-.hdr h1 { margin: 0; padding: 0; font: 700 2.1rem "Barlow Semi Condensed", sans-serif; }
-.sign { font-family: "Barlow Semi Condensed", sans-serif; font-weight: 700; font-size: 1.15rem;
-        letter-spacing: .08em; color: #F5C400; background: #13212E; padding: .05rem .5rem;
-        border: 2px solid #F5C400; outline: 2px solid #13212E; border-radius: 2px; }
-.sub { margin: .5rem 0 .25rem; color: #3D4B57; }
-.meta { margin: 0; font-family: "JetBrains Mono", monospace; font-size: .78rem; color: #55636F; }
+.hdr h1 { margin: 0; padding: 0; font: 700 2rem "Sora", sans-serif; letter-spacing: -.02em;
+          background: linear-gradient(90deg, #4C1D95, #7C3AED 50%, #C026D3);
+          -webkit-background-clip: text; background-clip: text; color: transparent; }
+.sign { font: 700 .8rem "Sora", sans-serif; letter-spacing: .12em; color: #6D28D9;
+        background: #F1ECFD; border: 1px solid #E0D6F8; padding: .2rem .65rem;
+        border-radius: 999px; }
+.sign::before { content: "●"; color: #F59E0B; margin-right: .4rem; }
+.sub { margin: .5rem 0 .25rem; color: #4A3D66; }
+.meta { margin: 0; font-family: "JetBrains Mono", monospace; font-size: .76rem; color: #7A6E94; }
+/* Suggested questions and buttons read as pills. */
+.stButton button { border-radius: 999px; }
+.stButton button[kind="secondary"]:hover { border-color: #7C3AED; color: #6D28D9;
+                                          background: #F1ECFD; }
+[data-testid="stChatInput"] > div { border-radius: 999px; }
+/* Bubbles: the user's in deeper lavender, the agent's in a pale one. The user keeps Streamlit's
+   default avatar because only that one carries a role test id to tell the two apart. */
+[data-testid="stChatMessage"] { padding: 1rem 1.1rem; border-radius: 18px; }
+[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) {
+  background: #EADFFD; }
+[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarCustom"]) {
+  background: #F7F3FF; border: 1px solid #E6DCFA; }
+[data-testid="stChatMessageAvatarUser"] { background: #F59E0B; color: #FFFFFF; }
+[data-testid="stChatMessageAvatarCustom"] { background: #7C3AED; color: #FFFFFF; }
 /* The default toggle is a bare chevron; a label says what is behind it. Streamlit's test id is
    not a public API, so a version bump may drop this; the toggle still works without it. */
 [data-testid="stExpandSidebarButton"] { width: auto; padding: 0 .6rem; gap: .35rem;
-  border: 1px solid #CDD5DB; border-radius: 4px; background: #FFFFFF; }
+  border: 1px solid #E0D6F8; border-radius: 999px; background: #FFFFFF; }
 [data-testid="stExpandSidebarButton"]::after { content: "Score weights"; font-size: .85rem;
-  font-weight: 600; color: #1D4F7A; }
+  font-weight: 600; color: #6D28D9; }
 [data-testid="stSidebarUserContent"] { padding-bottom: 1rem; }  /* weights fit without scrolling */
 [data-testid="stAudio"] { display: none; }  /* the agent talks; it doesn't hand over a file */
 </style>"""
@@ -59,7 +77,7 @@ HIDE_STOP_JS = """<script>(function wait() {
   a.addEventListener("ended", () => stop.style.display = "none");
 })();</script>"""
 
-AVATAR = {"user": ":material/person:", "assistant": ":material/flight_takeoff:"}
+AVATAR = {"user": None, "assistant": ":material/flight_takeoff:"}
 
 PROVIDERS_DOWN = "All AI providers are unavailable right now. Please try again in a minute."
 TURN_FAILED = "Something went wrong while answering. Try again or rephrase the question."
@@ -130,7 +148,7 @@ def sidebar(busy: bool) -> None:
 
 
 def header(manifest: dict, busy: bool) -> None:
-    """Title as a taxiway location sign, and a status line that shows the data period and
+    """Title in a dusk gradient, and a status line that shows the data period and
     whether custom weights are on, so neither hides in the collapsed sidebar."""
     weights = "custom weights (sidebar)" if current_weights() else "default weights"
     title, action = st.columns([4, 1], vertical_alignment="top")
