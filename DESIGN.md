@@ -214,8 +214,8 @@ reliably.
 - **227 offline tests** run in CI (GitHub Actions, with ruff). They use a synthetic snapshot and
   a scripted fake LLM. Integration tests drive the real graph through a tool loop, a grounding
   fix, a reviewer rejection, a provider fallback on 503, and all providers down.
-- **26 eval cases** (`evals/cases.yaml`) run the real graph on real LLMs. They cover the 4 brief
-  questions, follow-ups, ambiguity, clarifying questions, out-of-scope requests, red-team attacks
+- **27 eval cases** (`evals/cases.yaml`) run the real graph on real LLMs. They cover the 4 brief
+  questions, follow-ups, ambiguity, clarifying questions, investment risk, out-of-scope requests, red-team attacks
   and voice answers. The checks are code, not an LLM judge: which tools were called, expected
   airports in the top 3, cited fact keys, refusals, forbidden strings, grounding. Every report
   records the prompt hash and the git SHA, so a change in a metric can be traced to a prompt

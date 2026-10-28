@@ -40,6 +40,10 @@
 - id: concentration_atlanta
   turns: ["How dependent is Atlanta airport on a single airline?"]
   expect: {tools: [concentration_risk], mentions: [[DL, Delta]]}
+- id: risk_boston
+  turns: ["What are the main risks of investing in a terminal expansion at Boston Logan?"]
+  # Risk = airline dependence (HHI) plus the airport's own case (profile or rank), never a promised return.
+  expect: {tools: [concentration_risk], tools_any: [airport_profile, rank_airports], refs_any: [BOS.hhi, BOS.concentration_band, BOS.top_carrier_share], mentions: [[BOS, Boston]], not_contains: [guaranteed return]}
 - id: live_sfo
   turns: ["Are there any delays or closures at SFO right now?"]
   expect: {tools: [live_status]}

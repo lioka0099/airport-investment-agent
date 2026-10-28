@@ -467,7 +467,8 @@ def build_tools(store: Store, faa: FaaStatusClient) -> list[StructuredTool]:
          "distance buckets, top destinations. Use for long-haul questions."),
         (concentration_risk, CodeArgs,
          "Airline concentration at one airport: carrier shares, HHI, and risk band. Use for "
-         "airline-dependence questions."),
+         "airline-dependence questions, and for any question about investment risks at an "
+         "airport (one dominant airline leaving is a key downside)."),
         (live_status, LiveArgs,
          "Current FAA delays and closures for up to 10 airports. Live context only, not used in "
          "scoring."),
