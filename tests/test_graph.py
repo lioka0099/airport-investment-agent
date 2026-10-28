@@ -6,13 +6,18 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from airport_agent import config
 from airport_agent.agent.graph import build_graph, make_checkpointer, run_config, turn_input
-from airport_agent.agent.reviewer import Verdict
+from airport_agent.agent.reviewer import Issue, Verdict
 from airport_agent.agent.tools import build_tools
 from airport_agent.data.faa_status import FaaStatusClient
 from airport_agent.llm.resilience import AllProvidersFailed
 from airport_agent.security.sanitize import InputRejected
 from tests.test_faa_status import SAMPLE
 from tests.test_router import REQ, router
+
+
+def issue(problem: str) -> Issue:
+    return Issue(rule=1, blocks=True, quote="It is busy", problem=problem)  # quotes FINAL
+
 
 ERR = openai.APIStatusError("x", response=httpx.Response(503, request=REQ), body=None)
 FINAL = ("TL;DR: {{BOS.name}} leads with a score of {{BOS.score_terminal}}.\n\nIt is busy. Data "
@@ -48,7 +53,8 @@ def test_happy_path_is_grounded_cited_and_verified(store, tools):
     a = s["answer"]
     assert f"{s['facts']['BOS.score_terminal']['value']:.1f}" in a["tldr"]
     assert "{{" not in a["tldr"] + a["body"]
-    assert a["verification"] == {"status": "verified", "reviewer": "anthropic", "issues": []}
+    assert a["verification"] == {"status": "verified", "reviewer": "anthropic", "issues": [],
+                                 "notes": []}
     assert a["follow_ups"] == ["Why BOS?", "Compare BOS and BDL"]
     assert {c["source"] for c in a["citations"]} >= {"computed", "t100"}
     assert [t["tool"] for t in a["tool_data"]] == ["resolve_airports", "rank_airports"]
@@ -78,11 +84,12 @@ def test_unknown_placeholder_gets_one_fix(store, tools):
 
 def test_reviewer_rejects_twice_gives_unverified(store, tools):
     _, s = run(store, tools, {"openai": [RANK, AIMessage(FINAL), AIMessage(FINAL)],
-                              "anthropic": [Verdict(approved=False, issues=["too strong"]),
-                                            Verdict(approved=False, issues=["still too strong"])]})
+                              "anthropic": [Verdict(issues=[issue("too strong")]),
+                                            Verdict(issues=[issue("still too strong")])]})
     assert s["review_rounds"] == 2
     assert s["answer"]["verification"] == {"status": "unverified", "reviewer": "anthropic",
-                                           "issues": ["still too strong"]}
+                                           "issues": ['still too strong ("It is busy")'],
+                                           "notes": []}
 
 
 def test_agent_falls_back_and_reviewer_uses_another_provider(store, tools):
@@ -139,12 +146,12 @@ def test_text_next_to_dropped_tool_calls_is_not_the_draft(store, tools, monkeypa
 
 def test_reviewer_down_keeps_earlier_issues(store, tools):
     _, s = run(store, tools, {"openai": [RANK, AIMessage(FINAL), AIMessage(FINAL)],
-                              "anthropic": [Verdict(approved=False, issues=["too strong"]),
+                              "anthropic": [Verdict(issues=[issue("too strong")]),
                                             ERR, ERR, ERR],
                               "google": [ERR, ERR, ERR]})
     v = s["answer"]["verification"]
     assert v["status"] == "unverified" and v["reviewer"] is None
-    assert v["issues"][0] == "too strong" and "unavailable" in v["issues"][-1]
+    assert v["issues"][0] == 'too strong ("It is busy")' and "unavailable" in v["issues"][-1]
     assert s["review_rounds"] == 2
 
 
@@ -191,3 +198,12 @@ def test_profile_then_rank_keep_distinct_scores(store, tools):
     assert {"BOS.national_score", "BOS.national_rank", "BOS.score_terminal",
             "BOS.rank_terminal"} <= f.keys()
     assert "BOS.score" not in f
+
+
+def test_reviewer_notes_do_not_block_and_round_two_sees_earlier_issues(store, tools):
+    spy = {"openai": [RANK, AIMessage(FINAL), AIMessage(FINAL)],
+           "anthropic": [Verdict(issues=[issue("score called large but finding says similar")]),
+                         Verdict(notes=["could add the percentile"])]}
+    _, s = run(store, tools, spy)
+    assert s["answer"]["verification"] == {"status": "verified", "reviewer": "anthropic",
+                                           "issues": [], "notes": ["could add the percentile"]}

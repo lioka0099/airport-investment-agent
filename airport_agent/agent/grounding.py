@@ -22,6 +22,8 @@ TYPED_UNIT = {
     "miles": (" mi", re.compile(r"[\s-]*(miles?|mi)\b", re.I)),
     "pctl": (" percentile", re.compile(r"[\s-]*percentile\b", re.I)),
 }
+# follow-ups are the user's next request; questions to the user would be sent back as-is
+TO_USER = re.compile(r"(?i)^\W*((do|would) you (want|like)|(shall|should) i\b|want me\b)")
 FOLLOW_UPS = re.compile(r"(?im)^[ \t]*follow-?ups:[ \t]*")  # own line, or a first item after it
 TLDR = re.compile(r"(?i)tl;dr:")
 BULLET = re.compile(r"^\s*[-*•]\s+(.*\S)")
@@ -54,6 +56,7 @@ def parse_answer(text: str) -> ParsedAnswer:
     if m := TLDR.match(body):
         first, _, rest = body.partition("\n")
         tldr, body = first[m.end():].strip(), rest.strip()
+    follow_ups = [q for q in follow_ups if not TO_USER.match(q)]
     return ParsedAnswer(tldr=tldr, body=body, follow_ups=follow_ups[:3])
 
 
@@ -113,6 +116,7 @@ def render(text: str, facts: dict[str, dict], manifest: dict) -> Rendered:
         return "n/a"
 
     out.text = ANY_BRACES.sub(leftover, PLACEHOLDER.sub(substitute, text))
+    out.text = re.sub(r"##(?=\d)", "#", out.text)  # writer typed "#{{X.rank}}"; rank adds "#"
     out.unresolved = list(dict.fromkeys(out.unresolved))
     # Orphans: digits the LLM typed itself (not from a placeholder). The reviewer judges them.
     typed = LIST_MARKER.sub("", PLACEHOLDER.sub("", text))

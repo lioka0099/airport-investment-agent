@@ -6,7 +6,7 @@ from airport_agent.analytics import findings, metrics, scoring
 
 @pytest.mark.parametrize("a,b,expected", [
     (100, 105, "similar"), (100, 130, "moderate"), (20, 13, "large"),
-    (0, 0, "similar"), (5, 0, "large"),
+    (0, 0, "similar"), (5, 0, "large"), (5, -5, "large"), (-10, -10.5, "similar"),
 ])
 def test_significance(a, b, expected):
     assert findings.significance(a, b) == expected
@@ -25,6 +25,12 @@ def test_compare_findings_lax_vs_sna(store):
 def test_compare_skips_missing_values():
     rows = pd.DataFrame({"x": [1.0, None]}, index=["AAA", "BBB"])
     assert findings.compare_findings(rows, ["x"]) == []
+
+
+def test_no_ratio_across_zero_or_negative():
+    rows = pd.DataFrame({"growth": [0.04, -0.06]}, index=["SNA", "LAX"])
+    (f,) = findings.compare_findings(rows, ["growth"])
+    assert f["leader"] == "SNA" and f["ratio"] is None and f["significance"] == "large"
 
 
 def test_rank_findings(store):

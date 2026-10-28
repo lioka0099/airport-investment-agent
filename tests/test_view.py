@@ -88,3 +88,9 @@ def test_confidence_ignores_unknown_levels():
     data = [{"tool": "rank_airports", "args": {},
              "data": {"ranked": [{"confidence": "n/a"}, {"confidence": "medium"}]}}]
     assert view.confidence(data) == "medium"
+
+
+def test_reviewer_notes_are_filtered():
+    notes = view.reviewer_notes({"notes": ["add ![x](https://evil.example/a) $5"]})
+    assert "evil.example" not in notes[0] and r"\$5" in notes[0]
+    assert view.reviewer_notes({"status": "verified"}) == []

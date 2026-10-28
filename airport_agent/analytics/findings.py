@@ -11,6 +11,8 @@ from airport_agent import config
 
 
 def significance(a: float, b: float) -> str:
+    if a * b < 0:
+        return "large"  # opposite directions (growth vs decline) are never "similar"
     hi, lo = max(abs(a), abs(b)), min(abs(a), abs(b))
     if hi == 0:
         return "similar"
@@ -33,7 +35,7 @@ def compare_findings(rows: pd.DataFrame, metrics: list[str]) -> list[dict]:
         leader, other = values.idxmax(), values.idxmin()
         hi, lo = float(values[leader]), float(values[other])
         out.append({"type": "comparison", "metric": metric, "leader": leader, "other": other,
-                    "ratio": round(hi / lo, 2) if lo else None,
+                    "ratio": round(hi / lo, 2) if lo > 0 else None,  # a ratio needs positives
                     "significance": significance(hi, lo)})
     return out
 

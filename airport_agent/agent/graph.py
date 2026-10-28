@@ -147,22 +147,26 @@ def build_graph(router, tools: list, checkpointer, manifest: dict):
             verdict, reviewer = review(
                 router, question=state["question"], draft=draft,
                 facts=always | state["facts"], findings=state["findings"],
-                assumptions=state["assumptions"], exclude_provider=state["provider_used"])
+                assumptions=state["assumptions"], exclude_provider=state["provider_used"],
+                previous_issues=state["review_issues"])
         except AllProvidersFailed:
             return {"review_rounds": state["review_rounds"] + 1,
                     "verification": {"status": "unverified", "reviewer": None,
                                      "issues": [*state["review_issues"], prompts.REVIEWER_DOWN]}}
         rounds = state["review_rounds"] + 1
-        issues = verdict.issues + [f"Unknown placeholder: {r}" for r in draft["unresolved"]]
+        issues = [str(i) for i in verdict.issues]
+        issues += [f"Unknown placeholder: {r}" for r in draft["unresolved"]]
         if verdict.approved and not draft["unresolved"]:
             return {"review_rounds": rounds,
-                    "verification": {"status": "verified", "reviewer": reviewer, "issues": []}}
+                    "verification": {"status": "verified", "reviewer": reviewer, "issues": [],
+                                     "notes": verdict.notes}}
         if rounds < config.MAX_REVIEW_ROUNDS:
             feedback = "\n".join(f"- {i}" for i in issues) or "- The answer was not approved."
             return {"review_rounds": rounds, "draft": None, "review_issues": issues,
                     "messages": [HumanMessage(prompts.REVISE.format(issues=feedback))]}
         return {"review_rounds": rounds,
-                "verification": {"status": "unverified", "reviewer": reviewer, "issues": issues}}
+                "verification": {"status": "unverified", "reviewer": reviewer, "issues": issues,
+                                 "notes": verdict.notes}}
 
     def finalize(state: AgentState) -> dict:
         draft = state["draft"]

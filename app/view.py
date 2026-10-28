@@ -113,6 +113,11 @@ def verification_badge(v: dict) -> str:
     return "⚠️ Not verified: " + "; ".join(md_safe(filter_output(i, set())) for i in v["issues"])
 
 
+def reviewer_notes(v: dict) -> list[str]:
+    # Notes are LLM text: no links or images allowed.
+    return [md_safe(filter_output(n, set())) for n in v.get("notes", [])]
+
+
 def sources_md(citations: list[dict]) -> str:
     lines = []
     for c in citations:

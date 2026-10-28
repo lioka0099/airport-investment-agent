@@ -5,6 +5,7 @@ import os
 import uuid
 
 import streamlit as st
+from openai import OpenAI
 
 from airport_agent import config
 from airport_agent.agent.graph import build_graph, make_checkpointer, run_config, turn_input
@@ -14,7 +15,7 @@ from airport_agent.data.store import get_store
 from airport_agent.llm.resilience import AllProvidersFailed
 from airport_agent.llm.router import KEY_ENV, LLMRouter
 from airport_agent.security.sanitize import InputRejected
-from app import view
+from app import view, voice
 
 log = logging.getLogger(__name__)
 st.set_page_config(page_title="Airport Investment Agent", page_icon="✈️", layout="wide")
@@ -42,6 +43,8 @@ The score ranks opportunity, not financial return.
 
 PROVIDERS_DOWN = "All AI providers are unavailable right now. Please try again in a minute."
 TURN_FAILED = "Something went wrong while answering. Try again or rephrase the question."
+LIMIT_REACHED = "You reached the message limit for this session. Start a new chat later."
+COULD_NOT_HEAR = "Couldn't hear that — try again or type."
 
 
 def load_secrets() -> None:
@@ -60,6 +63,11 @@ def resources():
     tools = build_tools(store, FaaStatusClient())
     graph = build_graph(LLMRouter(), tools, make_checkpointer(), store.manifest())
     return store, graph
+
+
+@st.cache_resource
+def openai_client() -> OpenAI:
+    return OpenAI(timeout=30, max_retries=1)
 
 
 def init_session() -> None:
@@ -107,7 +115,7 @@ def ask(text: str) -> None:
     st.session_state.pending = text
 
 
-def show_answer(answer: dict, key: str) -> None:
+def show_answer(answer: dict, key: str, follow_ups: bool = False) -> None:
     if answer["tldr"]:
         st.markdown(f"**{view.md_safe(answer['tldr'])}**")
     st.markdown(view.md_safe(answer["body"]))
@@ -137,23 +145,45 @@ def show_answer(answer: dict, key: str) -> None:
         st.markdown(f"Data period: {answer['period']}")
         for a in answer["assumptions"]:
             st.markdown(f"- {view.md_safe(a)}")
-    cols = st.columns(max(len(answer["follow_ups"]), 1))
-    for i, (col, q) in enumerate(zip(cols, answer["follow_ups"], strict=False)):
-        col.button(view.md_safe(q), key=f"{key}-fu-{i}", on_click=ask, args=(q,))
+    if notes := view.reviewer_notes(answer["verification"]):
+        with st.expander("Reviewer notes"):
+            st.caption("Suggestions from the second AI. They did not block verification.")
+            for n in notes:
+                st.markdown(f"- {n}")
+    slot = st.empty()  # a placeholder replaces stale buttons at once, so none linger faded
+    if follow_ups and answer["follow_ups"]:
+        with slot.container():
+            for i, q in enumerate(answer["follow_ups"]):
+                st.button(view.md_safe(q), key=f"{key}-fu-{i}", on_click=ask, args=(q,),
+                          wrap=True)
 
 
-def run_turn(graph, question: str) -> None:
+def notify(error: str, retry: str | None = None) -> None:
+    """Show `error` after the rerun; kept in state so it survives reruns until the next turn."""
+    st.session_state.failed = {"error": error, "question": retry}
+    st.rerun()
+
+
+def heard(audio) -> str | None:
     if st.session_state.user_messages >= config.SESSION_MAX_MESSAGES:
-        st.warning("You reached the message limit for this session. Start a new chat later.")
-        return
+        return None  # no paid transcription past the limit; run_turn is never reached
+    try:
+        return voice.transcribe(audio.getvalue(), openai_client()) or None  # silence -> ""
+    except Exception as exc:
+        log.warning("STT failed: %s", type(exc).__name__)  # type only: may hold key
+        return None
+
+
+def run_turn(graph, question: str, by_voice: bool = False) -> None:
+    """Answer one question. Always ends in a rerun so the page redraws idle."""
+    if st.session_state.user_messages >= config.SESSION_MAX_MESSAGES:
+        notify(LIMIT_REACHED)
     if not any(st.session_state[f"w_{c}"] for c in config.WEIGHTS):
-        st.warning("Set at least one weight above zero.")
-        return
+        notify("Set at least one weight above zero.")
     try:
         inp = turn_input(question, current_weights())
     except InputRejected as exc:
-        st.warning(str(exc))
-        return
+        notify(str(exc))
     st.session_state.user_messages += 1
     st.session_state.failed = None
     st.session_state.history.append({"role": "user", "text": inp["question"]})
@@ -161,6 +191,7 @@ def run_turn(graph, question: str) -> None:
         st.markdown(view.md_safe(inp["question"]))
     cfg = run_config(st.session_state.thread_id)
     with st.chat_message("assistant"):
+        filler_slot, played = st.empty(), set()
         try:
             with st.status("Thinking…") as status:
                 for mode, event in graph.stream(inp, cfg, stream_mode=["updates", "custom"]):
@@ -168,20 +199,26 @@ def run_turn(graph, question: str) -> None:
                         label = view.status_label(event)
                         status.update(label=label)
                         status.write(label)
+                        clip = voice.filler_for(event, played) if by_voice else None
+                        if clip and clip.exists():  # one slot: a new clip replaces the last
+                            filler_slot.audio(str(clip), format="audio/mp3", autoplay=True)
                 status.update(label="Done", state="complete")
             answer = graph.get_state(cfg).values["answer"]
         except Exception as exc:
             if not isinstance(exc, AllProvidersFailed):
                 log.exception("Turn failed")
             st.session_state.history.pop()  # no dangling question after a failed turn
-            # kept in state so the message survives reruns until the next question
-            st.session_state.failed = {
-                "question": question,
-                "error": PROVIDERS_DOWN if isinstance(exc, AllProvidersFailed) else TURN_FAILED,
-            }
-            st.rerun()
+            notify(PROVIDERS_DOWN if isinstance(exc, AllProvidersFailed) else TURN_FAILED,
+                   retry=question)
+        filler_slot.empty()
         show_answer(answer, key=f"a{len(st.session_state.history)}")
+        if by_voice and answer["tldr"]:  # asked by voice -> answered by voice
+            try:
+                st.session_state.speak = voice.speak(answer["tldr"], openai_client())
+            except Exception as exc:
+                log.warning("TTS failed: %s", type(exc).__name__)
     st.session_state.history.append({"role": "assistant", "answer": answer})
+    st.rerun()
 
 
 def main() -> None:
@@ -197,29 +234,46 @@ def main() -> None:
     st.caption("Ranks and explains US airport renovation opportunities from public BTS and FAA "
                "data. Every number is computed in code and cited.")
 
+    pending, st.session_state.pending = st.session_state.pending, None
+    value = st.chat_input("Ask about US airports, or tap the mic…", key="chat",
+                          max_chars=config.MAX_INPUT_CHARS,
+                          accept_audio=bool(os.environ.get("OPENAI_API_KEY")),
+                          submit_mode="disable", disabled=pending is not None)
+    question, by_voice = pending, False
+    if value is not None and getattr(value, "audio", None) is not None:
+        question, by_voice = heard(value.audio), True
+        if question is None:
+            over = st.session_state.user_messages >= config.SESSION_MAX_MESSAGES
+            st.session_state.failed = {"error": LIMIT_REACHED if over else COULD_NOT_HEAR,
+                                       "question": None}
+    elif value is not None:
+        question = getattr(value, "text", value) or None
+
+    last = len(st.session_state.history) - 1
     for i, turn in enumerate(st.session_state.history):
         with st.chat_message(turn["role"]):
             if turn["role"] == "user":
                 st.markdown(view.md_safe(turn["text"]))
             else:
-                show_answer(turn["answer"], key=f"h{i}")
+                show_answer(turn["answer"], key=f"h{i}", follow_ups=i == last and not question)
+                if i == last and (audio := st.session_state.pop("speak", None)):
+                    st.audio(audio, format="audio/mp3", autoplay=True)
 
-    typed = st.chat_input("Ask about US airports…", max_chars=config.MAX_INPUT_CHARS)
-    question = typed or st.session_state.pending
-    st.session_state.pending = None
-
-    if (failed := st.session_state.failed) and not question:
-        with st.chat_message("assistant"):
-            st.error(failed["error"])
-            st.button("Try again", key="retry", on_click=ask, args=(failed["question"],))
-
-    if not st.session_state.history and not question:
-        st.markdown("**Try one of these:**")
-        for i, q in enumerate(view.EXAMPLES):
-            st.button(q, key=f"ex-{i}", on_click=ask, args=(q,))
+    idle = st.empty()  # chips and errors: cleared at once while a turn runs
+    if not question:
+        with idle.container():
+            if failed := st.session_state.failed:
+                with st.chat_message("assistant"):
+                    st.error(failed["error"])
+                    if failed["question"]:
+                        st.button("Try again", key="retry", on_click=ask,
+                                  args=(failed["question"],))
+            if not st.session_state.history:
+                st.markdown("**Try one of these:**")
+                for i, q in enumerate(view.EXAMPLES):
+                    st.button(q, key=f"ex-{i}", on_click=ask, args=(q,))
 
     if question:
-        run_turn(graph, question)
-
+        run_turn(graph, question, by_voice)
 
 main()

@@ -116,3 +116,16 @@ def test_unit_typed_by_the_writer_is_not_doubled():
     text = "{{SFO.avg_taxi_out}}-minute taxi, {{SFO.load_factor}}% full, {{SFO.avg_taxi_out}} wait"
     r = render(text, FACTS, MANIFEST)
     assert r.text == "25.0¹-minute taxi, 88.2²% full, 25.0 min¹ wait"
+
+
+def test_follow_ups_addressed_to_the_user_are_dropped():
+    text = ("TL;DR: x\n\nbody\n\nFOLLOW-UPS:\n- Do you want me to compare BOS and BDL?\n"
+            "- Would you like the top routes?\n- Compare BOS and BDL on taxi times\n"
+            "- Can you show SFO's long-haul share?")
+    assert parse_answer(text).follow_ups == ["Compare BOS and BDL on taxi times",
+                                             "Can you show SFO's long-haul share?"]
+
+
+def test_render_does_not_double_the_rank_hash():
+    facts = {"BOS.rank": {"value": 15, "unit": "rank", "source": "computed"}}
+    assert render("Ranked #{{BOS.rank}}.", facts, MANIFEST).text.startswith("Ranked #15")
