@@ -21,6 +21,9 @@ HINT_ECHO = "airport investment questions, e.g."
 # ponytail: a fixed loudness gate on 16-bit samples (max 32767). Room noise sits in the low
 # hundreds, speech peaks in the thousands. Tune it if quiet speakers get dropped.
 SILENCE_LEVEL = 500
+# gpt-4o-mini-tts improvises tone and pace unless told; fixed instructions keep every answer alike.
+VOICE_STYLE = ("Speak as a calm, friendly airport investment analyst: warm, clear, steady pace, "
+               "neutral American accent, same tone every time.")
 
 
 def is_silent(audio: bytes) -> bool:
@@ -58,7 +61,7 @@ def _gemini_stt(audio: bytes, client, model: str) -> str:
 
 def _openai_tts(text: str, client, model: str, voice: str) -> tuple[bytes, str]:
     audio = client.audio.speech.create(model=model, voice=voice, input=text,
-                                       response_format="mp3").read()
+                                       instructions=VOICE_STYLE, response_format="mp3").read()
     return audio, "audio/mp3"
 
 

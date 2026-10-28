@@ -67,6 +67,7 @@ def test_openai_is_used_first_with_english_fixed():
     assert c.sent["stt"]["language"] == "en"  # no auto-detect: it once heard Spanish
     assert voice.speak("Hi¹ **there**", clients) == (b"mp3", "audio/mp3")
     assert c.sent["tts"]["input"] == "Hi there" and c.sent["tts"]["voice"] == "alloy"
+    assert c.sent["tts"]["instructions"] == voice.VOICE_STYLE  # same delivery on every answer
 
 
 def test_gemini_takes_over_when_openai_fails():
