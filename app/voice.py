@@ -1,31 +1,13 @@
-"""Voice: speech in (STT), spoken TL;DR out (TTS), and pre-generated status fillers."""
+"""Voice: speech in (STT) and a spoken answer out (TTS)."""
 
 import re
-from pathlib import Path
 
 from airport_agent import config
 
-FILLER_DIR = Path(__file__).parent / "assets" / "fillers"
-FILLER_TEXT = {
-    "finding": "Let me find those airports.",
-    "numbers": "Running the numbers.",
-    "checking": "Double-checking the figures.",
-}
-FILLER_FOR = {
-    "resolve_airports": "finding",
-    "rank_airports": "numbers", "compare_airports": "numbers", "airport_profile": "numbers",
-    "route_mix": "numbers", "concentration_risk": "numbers",
-    "verifying": "checking",
-}
 MAX_SPOKEN_CHARS = 600
-
-
-def filler_for(event: dict, played: set[str]) -> Path | None:
-    name = FILLER_FOR.get(event.get("tool") or event.get("stage"))
-    if name is None or name in played:
-        return None
-    played.add(name)
-    return FILLER_DIR / f"{name}.mp3"
+# Auto language detection heard "Compare airports" as Spanish "Comprar AirPods".
+STT_LANGUAGE = "en"
+STT_HINT = "US airport investment questions, e.g. Compare LAX and SNA. Airports: BOS, JFK, SFO."
 
 
 def speakable(text: str) -> str:
@@ -37,7 +19,8 @@ def speakable(text: str) -> str:
 
 def transcribe(audio: bytes, client) -> str:
     result = client.audio.transcriptions.create(model=config.STT_MODEL,
-                                                file=("question.wav", audio))
+                                                file=("question.wav", audio),
+                                                language=STT_LANGUAGE, prompt=STT_HINT)
     return result.text.strip()
 
 

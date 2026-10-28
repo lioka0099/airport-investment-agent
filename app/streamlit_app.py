@@ -191,7 +191,6 @@ def run_turn(graph, question: str, by_voice: bool = False) -> None:
         st.markdown(view.md_safe(inp["question"]))
     cfg = run_config(st.session_state.thread_id)
     with st.chat_message("assistant"):
-        filler_slot, played = st.empty(), set()
         try:
             with st.status("Thinking…") as status:
                 for mode, event in graph.stream(inp, cfg, stream_mode=["updates", "custom"]):
@@ -199,9 +198,6 @@ def run_turn(graph, question: str, by_voice: bool = False) -> None:
                         label = view.status_label(event)
                         status.update(label=label)
                         status.write(label)
-                        clip = voice.filler_for(event, played) if by_voice else None
-                        if clip and clip.exists():  # one slot: a new clip replaces the last
-                            filler_slot.audio(str(clip), format="audio/mp3", autoplay=True)
                 status.update(label="Done", state="complete")
             answer = graph.get_state(cfg).values["answer"]
         except Exception as exc:
@@ -210,11 +206,11 @@ def run_turn(graph, question: str, by_voice: bool = False) -> None:
             st.session_state.history.pop()  # no dangling question after a failed turn
             notify(PROVIDERS_DOWN if isinstance(exc, AllProvidersFailed) else TURN_FAILED,
                    retry=question)
-        filler_slot.empty()
         show_answer(answer, key=f"a{len(st.session_state.history)}")
-        if by_voice and answer["tldr"]:  # asked by voice -> answered by voice
+        if by_voice:  # asked by voice -> answered by voice; small talk has no TL;DR
             try:
-                st.session_state.speak = voice.speak(answer["tldr"], openai_client())
+                st.session_state.speak = voice.speak(answer["tldr"] or answer["body"],
+                                                     openai_client())
             except Exception as exc:
                 log.warning("TTS failed: %s", type(exc).__name__)
     st.session_state.history.append({"role": "assistant", "answer": answer})

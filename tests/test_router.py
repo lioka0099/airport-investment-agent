@@ -35,8 +35,12 @@ class FakeModel:
         return outcome
 
 
+# Fixed chain: tests check fallback mechanics, not which provider production puts first.
+CHAIN = [("openai", "gpt-5.4-mini"), ("anthropic", "claude-haiku-5-5")]
+
+
 def router(outcomes, env=KEYS):
-    return LLMRouter(factory=lambda p, m: FakeModel(p, outcomes), env=env,
+    return LLMRouter(CHAIN, factory=lambda p, m: FakeModel(p, outcomes), env=env,
                      breaker=CircuitBreaker(), sleep=lambda s: None)
 
 

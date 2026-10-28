@@ -52,7 +52,7 @@ SESSION_MAX_MESSAGES = 30
 HISTORY_MAX_TOKENS = 12_000
 
 # --- LLM providers: (provider, model). Order = fallback order. ---
-AGENT_CHAIN = [("openai", "gpt-5.4-mini"), ("anthropic", "claude-haiku-5-5")]
+AGENT_CHAIN = [("anthropic", "claude-haiku-5-5"), ("openai", "gpt-5.4-mini")]
 REVIEWER_CHAIN = [
     ("anthropic", "claude-haiku-5-5"),
     ("google", "gemini-3.6-flash"),
