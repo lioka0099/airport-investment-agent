@@ -60,6 +60,8 @@ REVIEWER_CHAIN = [
 ]
 LLM_TIMEOUT_S = 45
 CIRCUIT_OPEN_S = 60
+RETRY_AFTER_MAX_S = 5                  # 429 with longer Retry-After -> fall back, don't wait
+LLM_MAX_RETRIES = 2                    # retries per provider for transient errors
 STT_MODEL = "gpt-4o-transcribe"
 TTS_MODEL = "gpt-4o-mini-tts"
 TTS_VOICE = "alloy"

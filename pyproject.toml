@@ -19,6 +19,7 @@ dependencies = [
     "httpx>=0.28",
     "pydantic>=2.14",
     "pyyaml>=6.0",
+    "anthropic>=2.3",
 ]
 
 [dependency-groups]
