@@ -207,3 +207,20 @@ def test_reviewer_notes_do_not_block_and_round_two_sees_earlier_issues(store, to
     _, s = run(store, tools, spy)
     assert s["answer"]["verification"] == {"status": "verified", "reviewer": "anthropic",
                                            "issues": [], "notes": ["could add the percentile"]}
+
+
+def test_history_drops_tool_calls_cut_off_by_an_interrupted_turn():
+    from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+
+    from airport_agent.agent.graph import _history
+
+    call = {"name": "airport_profile", "args": {}, "id": "t1"}
+    done = {"name": "rank_airports", "args": {}, "id": "t0"}
+    messages = [HumanMessage("Rank MA"), AIMessage("", tool_calls=[done]),
+                ToolMessage("{}", tool_call_id="t0"), AIMessage("MA ranked."),
+                HumanMessage("Profile SFO"), AIMessage("", tool_calls=[call]),  # rerun hit here
+                HumanMessage("Profile BOS")]
+    kept = _history({"messages": messages, "question": "Profile BOS"})
+    assert [m.content for m in kept] == ["Rank MA", "", "{}", "MA ranked.", "Profile SFO",
+                                         "Profile BOS"]
+    assert kept[1].tool_calls  # answered calls stay

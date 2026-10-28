@@ -74,9 +74,20 @@ def make_checkpointer(path: Path = config.CHAT_DB_PATH) -> SqliteSaver:
     return SqliteSaver(sqlite3.connect(str(path), check_same_thread=False))
 
 
+def _answered_only(messages: list) -> list:
+    """A turn cut off mid-way (a Streamlit rerun, a crash) can leave tool calls without results,
+    and providers reject such a history with a 400 on every later turn. Drop those calls."""
+    answered = {m.tool_call_id for m in messages if isinstance(m, ToolMessage)}
+    broken = {c["id"] for m in messages if isinstance(m, AIMessage)
+              if any(x["id"] not in answered for x in m.tool_calls) for c in m.tool_calls}
+    return [m for m in messages
+            if not (isinstance(m, AIMessage) and {c["id"] for c in m.tool_calls} & broken)
+            and not (isinstance(m, ToolMessage) and m.tool_call_id in broken)]
+
+
 def _history(state: AgentState) -> list:
     """Trim earlier turns to the token budget; always keep the current turn whole."""
-    messages = state["messages"]
+    messages = _answered_only(state["messages"])
     start = max(i for i, m in enumerate(messages)
                 if isinstance(m, HumanMessage) and m.content == state["question"])
     earlier = trim_messages(messages[:start], max_tokens=config.HISTORY_MAX_TOKENS,

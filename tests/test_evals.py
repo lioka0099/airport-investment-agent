@@ -1,6 +1,6 @@
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from evals.run_evals import check, load_cases
+from evals.run_evals import check, grade, load_cases
 
 
 def state(tools=(), tldr="BOS leads.", body="Body.", refs=("BOS.score",), unresolved=(),
@@ -43,6 +43,20 @@ def test_refuse_and_grounding():
     assert any("ground" in f for f in failures)
 
 
+def test_spoken_offer():
+    case = {"id": "x", "expect": {"spoken_offer": True}}
+    voiced = state()
+    voiced["answer"]["spoken"] = "BOS leads. Want me to compare it with JFK?"
+    assert check(case, voiced) == []
+    voiced["answer"]["spoken"] = "BOS leads."
+    assert check(case, voiced) == ["spoken answer does not end with an offer"]
+    assert check(case, state())  # a text answer has no spoken part at all
+    numbers = {"id": "x", "expect": {"spoken_numbers": True}}
+    assert check(numbers, voiced) == ["spoken answer has no numbers"]
+    voiced["answer"]["spoken"] = "BOS takes 21.4 min to taxi out."
+    assert check(numbers, voiced) == []
+
+
 def test_missing_answer_is_a_failure():
     assert check({"id": "x", "expect": {}}, {"answer": None}) == ["no answer"]
 
@@ -76,3 +90,14 @@ def test_report_keeps_the_reviewers_reasons(tmp_path, monkeypatch):
     assert "**pizza**" in md.read_text() and "- No period stated" in md.read_text()
     saved = json.loads(md.with_suffix(".json").read_text())
     assert saved["results"][0]["review_issues"] == ["No period stated"]
+
+
+def test_langsmith_grader_uses_the_same_checks():
+    s = state(tools=["rank_airports"])
+    outputs = {"answer": s["answer"] | {"verification": {"status": "verified"}},
+               "draft": s["draft"], "called": ["rank_airports"]}  # JSON, no messages
+    results = grade(outputs, {"expect": {"top3": ["BOS"]}})["results"]
+    scores = {r["key"]: r["score"] for r in results}
+    assert scores == {"passed": True, "verified": True}
+    failed = grade(None, {"expect": {}})["results"][0]  # the target raised
+    assert failed["score"] is False and failed["comment"] == "no answer"

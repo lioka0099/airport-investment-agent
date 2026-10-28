@@ -4,6 +4,23 @@ headless = true
 [browser]
 gatherUsageStats = false
 
+[client]
+toolbarMode = "minimal"  # no Deploy button or developer menu for analysts
+
+# Airfield palette: concrete apron, navy ink, ATC blue. Signage yellow is used only in the header.
 [theme]
 base = "light"
-primaryColor = "#1f4e79"
+primaryColor = "#1D4F7A"
+backgroundColor = "#F4F6F7"
+secondaryBackgroundColor = "#E5EAEE"
+textColor = "#13212E"
+borderColor = "#CDD5DB"
+linkColor = "#1D4F7A"
+baseRadius = "small"
+# Barlow is modeled on US highway signs; Public Sans is the US government's open typeface.
+headingFont = "Barlow Semi Condensed:https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&display=swap"
+font = "Public Sans:https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;600&display=swap"
+codeFont = "JetBrains Mono:https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&display=swap"
+
+[theme.sidebar]
+backgroundColor = "#E5EAEE"
