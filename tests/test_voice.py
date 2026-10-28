@@ -1,5 +1,8 @@
+import io
+import wave
 from types import SimpleNamespace as NS
 
+import numpy as np
 import pytest
 
 from app import voice
@@ -11,16 +14,29 @@ def test_speakable_strips_marks_markdown_and_links():
     assert len(voice.speakable("a " * 1000)) <= 600
 
 
+def wav(amplitude: int) -> bytes:
+    """Half a second of a 16 kHz tone; amplitude 0 is silence."""
+    t = np.arange(8000) / 16000
+    samples = (amplitude * np.sin(2 * np.pi * 220 * t)).astype(np.int16)
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(16000)
+        w.writeframes(samples.tobytes())
+    return buf.getvalue()
+
+
 class FakeOpenAI:
-    def __init__(self, down=False):
-        self.sent, self.down = {}, down
+    def __init__(self, down=False, heard="  Compare LAX and SNA \n"):
+        self.sent, self.down, self.heard = {}, down, heard
         self.audio = NS(transcriptions=NS(create=self._stt), speech=NS(create=self._tts))
 
     def _stt(self, **kw):
         if self.down:
             raise ConnectionError("down")
         self.sent["stt"] = kw
-        return NS(text="  Compare LAX and SNA \n")
+        return NS(text=self.heard)
 
     def _tts(self, **kw):
         if self.down:
@@ -67,3 +83,16 @@ def test_all_providers_down_raises_and_no_keys_raises():
         voice.transcribe(b"wav", {"openai": FakeOpenAI(down=True)})
     with pytest.raises(RuntimeError):
         voice.speak("hi", {})
+
+
+def test_silence_skips_the_providers():
+    c = FakeOpenAI()
+    assert voice.transcribe(wav(0), {"openai": c}) == ""
+    assert voice.transcribe(wav(200), {"openai": c}) == ""  # room noise
+    assert "stt" not in c.sent
+    assert voice.transcribe(wav(8000), {"openai": c}) == "Compare LAX and SNA"
+
+
+def test_an_echoed_hint_counts_as_nothing_said():
+    echo = f"context: ### {voice.STT_HINT}"
+    assert voice.transcribe(wav(8000), {"openai": FakeOpenAI(heard=echo)}) == ""

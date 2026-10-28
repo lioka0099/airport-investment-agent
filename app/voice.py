@@ -1,8 +1,11 @@
 """Voice: speech in (STT) and a spoken answer out (TTS), with a provider fallback."""
 
+import io
 import logging
 import re
+import wave
 
+import numpy as np
 from google.genai import types
 
 from airport_agent import config
@@ -13,6 +16,22 @@ MAX_SPOKEN_CHARS = 600
 # Auto language detection heard "Compare airports" as Spanish "Comprar AirPods".
 STT_LANGUAGE = "en"
 STT_HINT = "US airport investment questions, e.g. Compare LAX and SNA. Airports: BOS, JFK, SFO."
+# On silence the model "transcribes" the hint itself; nobody says this phrase, so it marks an echo.
+HINT_ECHO = "airport investment questions, e.g."
+# ponytail: a fixed loudness gate on 16-bit samples (max 32767). Room noise sits in the low
+# hundreds, speech peaks in the thousands. Tune it if quiet speakers get dropped.
+SILENCE_LEVEL = 500
+
+
+def is_silent(audio: bytes) -> bool:
+    """True when the recording never gets louder than room noise. Not a WAV: let STT decide."""
+    try:
+        with wave.open(io.BytesIO(audio)) as w:
+            samples = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16)
+    except (wave.Error, EOFError):
+        return False
+    # 99th percentile, not max: one click or bump shouldn't count as speech
+    return samples.size == 0 or np.percentile(np.abs(samples.astype(np.int32)), 99) < SILENCE_LEVEL
 
 
 def speakable(text: str) -> str:
@@ -71,9 +90,12 @@ def _first(attempts):
 
 
 def transcribe(audio: bytes, clients: dict) -> str:
-    """clients: {provider: SDK client} for the providers that have a key."""
-    return _first((p, lambda p=p, m=m: STT[p](audio, clients[p], m).strip())
+    """clients: {provider: SDK client} for the providers that have a key. "" means nothing said."""
+    if is_silent(audio):
+        return ""  # no API call, and nothing for the model to make up
+    text = _first((p, lambda p=p, m=m: STT[p](audio, clients[p], m).strip())
                   for p, m in config.STT_CHAIN if p in clients)
+    return "" if HINT_ECHO in text else text
 
 
 def speak(text: str, clients: dict) -> tuple[bytes, str]:
