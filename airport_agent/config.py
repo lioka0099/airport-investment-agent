@@ -41,6 +41,7 @@ HHI_HIGH = 2500
 # --- Confidence ---
 CONFIDENCE_HIGH_COVERAGE = 0.5         # On-Time departures / T-100 departures
 CONFIDENCE_MEDIUM_COVERAGE = 0.2
+CONFIDENCE_FULL_MONTHS = 12           # T-100 months needed for "high" confidence
 
 # --- Agent limits ---
 TOOL_BUDGET = 12
