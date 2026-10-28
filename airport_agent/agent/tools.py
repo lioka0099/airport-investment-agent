@@ -43,12 +43,12 @@ METRIC_FACTS = {
     "avg_taxi_out": ("minutes", "ontime"), "avg_taxi_in": ("minutes", "ontime"),
     "nas_min_per_flight": ("minutes", "ontime"), "dep_del15_rate": ("pct", "ontime"),
     "cancel_rate": ("pct", "ontime"), "ontime_coverage": ("pct", "computed"),
-    "score": ("score", "computed"), "rank": ("rank", "computed"),
+    "national_score": ("score", "computed"),
     "classification": ("text", "computed"), "confidence": ("text", "computed"),
     **{f"{c}_pctl": ("pctl", "computed") for c in scoring.COMPONENTS},
 }
 PCTL_KEYS = [f"{c}_pctl" for c in scoring.COMPONENTS]
-RANK_KEYS = ["name", "score", "rank", "classification", "confidence", "passengers_l12m",
+RANK_KEYS = ["name", "classification", "confidence", "passengers_l12m",
              "load_factor", "growth_yoy", "avg_taxi_in", "avg_taxi_out", "nas_min_per_flight",
              *PCTL_KEYS]
 COMPARE_METRICS = ["passengers_l12m", "load_factor", "growth_yoy", "avg_taxi_out", "avg_taxi_in",
@@ -268,6 +268,14 @@ def build_tools(store: Store, faa: FaaStatusClient) -> list[StructuredTool]:
         facts, rows = {}, []
         for code, r in shown.iterrows():
             facts |= _facts(code, _with_pctl(r), RANK_KEYS)
+            # Score and rank depend on focus, so the key carries it. Classification, confidence
+            # and percentiles are national and stay shared.
+            # ponytail: two rank calls with different custom weights in one turn still share keys.
+            for key, val, unit in [(f"score_{focus}", r["score"], "score"),
+                                   (f"rank_{focus}", r["rank"], "rank"),
+                                   (f"rank_{focus}_min", r["rank_min"], "rank"),
+                                   (f"rank_{focus}_max", r["rank_max"], "rank")]:
+                facts[f"{code}.{key}"] = Fact(value=float(val), unit=unit, source="computed")
             rows.append({
                 "code": code, "name": r["name"], "state": r["state"],
                 "score": round(float(r["score"]), 1), "rank": int(r["rank"]),
@@ -279,6 +287,8 @@ def build_tools(store: Store, faa: FaaStatusClient) -> list[StructuredTool]:
             })
         facts |= {f"WEIGHTS.{k}": Fact(value=v, unit="pct", source="computed")
                   for k, v in ranking.weights.items()}
+        facts[f"RANK.{focus}_count"] = Fact(value=len(ranking.ranked), unit="count",
+                                            source="computed")
         shown_codes = set(shown.index)
         fnd = [f for f in findings.rank_findings(ranking.ranked)
                if f.get("airport") in shown_codes or f["type"] == "close_call"]
@@ -338,10 +348,11 @@ def build_tools(store: Store, faa: FaaStatusClient) -> list[StructuredTool]:
         national = scoring.score_airports(m)
         if code in national.ranked.index:
             r = national.ranked.loc[code]
-            facts |= _facts(code, _with_pctl(r), ["score", "classification", "confidence",
-                                                  *PCTL_KEYS])
-            facts[f"{code}.national_rank"] = Fact(value=int(r["rank"]), unit="rank",
-                                                  source="computed")
+            facts |= _facts(code, _with_pctl(r) | {"national_score": r["score"]},
+                            ["national_score", "classification", "confidence", *PCTL_KEYS])
+            for key, col in [("national_rank", "rank"), ("national_rank_min", "rank_min"),
+                             ("national_rank_max", "rank_max")]:
+                facts[f"{code}.{key}"] = Fact(value=int(r[col]), unit="rank", source="computed")
             facts["PEERS.count"] = Fact(value=len(national.ranked), unit="count",
                                         source="computed")
             fnd += [f for f in findings.rank_findings(national.ranked) if f.get("airport") == code]
@@ -443,20 +454,23 @@ def build_tools(store: Store, faa: FaaStatusClient) -> list[StructuredTool]:
         (rank_airports, RankArgs,
          "Rank airports by Opportunity Score (0-100) with bottleneck classification, confidence "
          "and rank stability. focus='terminal' for terminal expansion, 'airside' for runway/"
-         "airfield projects, 'overall' otherwise."),
+         "airfield projects, 'overall' for general 'best opportunities' questions."),
         (compare_airports, CompareArgs,
          "Compare 2-5 airports side by side on traffic, load factor, growth and congestion "
-         "(taxi-out, taxi-in, NAS delay, delay rate), with computed comparison findings."),
+         "(taxi-out, taxi-in, NAS delay, delay rate), with computed comparison findings. Use for "
+         "congestion comparisons."),
         (airport_profile, CodeArgs,
          "Full profile of one airport: all KPIs, unmet demand (seats gap), delay-cause mix, "
          "national rank and classification, and the monthly trend. Use for 'why' questions."),
         (route_mix, RouteArgs,
          "Route distance mix for one airport: long-haul share (default threshold 2,400 miles), "
-         "distance buckets, top destinations."),
+         "distance buckets, top destinations. Use for long-haul questions."),
         (concentration_risk, CodeArgs,
-         "Airline concentration at one airport: carrier shares, HHI, and risk band."),
+         "Airline concentration at one airport: carrier shares, HHI, and risk band. Use for "
+         "airline-dependence questions."),
         (live_status, LiveArgs,
-         "Current FAA delays and closures for up to 10 airports. Live context only."),
+         "Current FAA delays and closures for up to 10 airports. Live context only, not used in "
+         "scoring."),
     ]
     return [StructuredTool.from_function(func=f, name=f.__name__, description=d, args_schema=a)
             for f, a, d in specs]

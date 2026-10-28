@@ -66,7 +66,12 @@ def test_resolve_not_found(tools):
 def test_rank_terminal_focus(tools):
     r = call(tools, "rank_airports", codes=["BOS", "BDL", "PVD", "BTV"], focus="terminal")
     assert [row["code"] for row in r.data["ranked"]] == ["BOS", "BDL"]
-    assert "BOS.score" in r.facts and r.facts["BOS.score"].unit == "score"
+    assert "BOS.score" not in r.facts and "BOS.rank" not in r.facts
+    assert r.facts["BOS.score_terminal"].unit == "score"
+    assert r.facts["BOS.rank_terminal"].value == 1
+    assert r.facts["BOS.rank_terminal_min"].unit == "rank"
+    assert (r.facts["BOS.rank_terminal_min"].value <= r.facts["BOS.rank_terminal"].value
+            <= r.facts["BOS.rank_terminal_max"].value)
     assert r.facts["BOS.terminal_pctl"].unit == "pctl"
     assert {e["code"] for e in r.data["excluded"]} == {"BTV", "PVD"}
     assert any(f["type"] == "rank" and f["airport"] == "BOS" and f["position"] == 1
@@ -174,3 +179,16 @@ def test_base_facts(store):
 def test_all_tool_payloads_are_json(tools):
     payload = json.loads(call(tools, "rank_airports").to_llm_json())
     assert payload["error"] is None
+
+
+def test_profile_score_is_national_and_distinct_from_rank_score(tools):
+    p = call(tools, "airport_profile", code="BOS")
+    assert "BOS.score" not in p.facts and p.facts["BOS.national_score"].unit == "score"
+    assert "BOS.national_rank" in p.facts
+    lo, hi = p.facts["BOS.national_rank_min"].value, p.facts["BOS.national_rank_max"].value
+    assert lo <= p.facts["BOS.national_rank"].value <= hi
+
+
+def test_rank_reports_subset_size(tools):
+    r = call(tools, "rank_airports", codes=["BOS", "BDL", "PVD"], focus="terminal")
+    assert 1 <= r.facts["RANK.terminal_count"].value <= 3

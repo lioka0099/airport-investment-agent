@@ -11,3 +11,4 @@ __pycache__/
 data_cache/
 chat_history.sqlite*
 evals/reports/
+.DS_Store
