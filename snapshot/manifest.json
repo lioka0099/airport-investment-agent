@@ -1,0 +1,30 @@
+{
+  "created_at": "2026-10-28T11:18:57+00:00",
+  "l12m_start": "2025-08-01",
+  "l12m_end": "2026-07-01",
+  "sources": {
+    "t100": {
+      "period": "2019-01 to 2026-07",
+      "retrieved_at": "2026-10-28T11:18:57+00:00",
+      "rows_kept": 13780,
+      "rows_dropped": 68586,
+      "notes": "Origin-airport passengers, seats, departures; all US and foreign carriers.",
+      "dataset": "r495-tyji"
+    },
+    "ontime": {
+      "period": "2025-08 to 2026-07",
+      "retrieved_at": "2026-10-28T11:18:57+00:00",
+      "rows_kept": 3405,
+      "rows_dropped": 3811,
+      "notes": "Domestic flights of reporting carriers only.",
+      "missing_months": []
+    },
+    "ourairports": {
+      "period": "current",
+      "retrieved_at": "2026-10-28T11:18:57+00:00",
+      "rows_kept": 530,
+      "rows_dropped": 84334,
+      "notes": "US airports with an IATA code and T-100 traffic."
+    }
+  }
+}
