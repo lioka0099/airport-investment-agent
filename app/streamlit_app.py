@@ -66,6 +66,13 @@ HEADER_CSS = """<style>
   border: 1px solid #E0D6F8; border-radius: 999px; background: #FFFFFF; }
 [data-testid="stExpandSidebarButton"]::after { content: "Score weights"; font-size: .85rem;
   font-weight: 600; color: #6D28D9; }
+/* Top bar in violet, with New chat pinned on its right (z-index above Streamlit's bar). */
+[data-testid="stHeader"] { background: linear-gradient(90deg, #6D28D9, #8B5CF6 60%, #A855F7); }
+[data-testid="stHeader"] [data-testid="stToolbar"] button { color: #FFFFFF; }
+.st-key-new_chat { position: fixed; top: .55rem; right: 1rem; z-index: 999991; width: auto; }
+.st-key-new_chat button { background: #FFFFFF; border-color: #FFFFFF; color: #6D28D9;
+                          font-weight: 600; }
+.st-key-new_chat button:hover { background: #F1ECFD; color: #6D28D9; }
 [data-testid="stSidebarUserContent"] { padding-bottom: 1rem; }  /* weights fit without scrolling */
 [data-testid="stAudio"] { display: none; }  /* the agent talks; it doesn't hand over a file */
 </style>"""
@@ -151,10 +158,10 @@ def header(manifest: dict, busy: bool) -> None:
     """Title in a dusk gradient, and a status line that shows the data period and
     whether custom weights are on, so neither hides in the collapsed sidebar."""
     weights = "custom weights (sidebar)" if current_weights() else "default weights"
-    title, action = st.columns([4, 1], vertical_alignment="top")
-    action.button("New chat", icon=":material/add_comment:", on_click=new_chat, width="content",
-                  disabled=busy)
-    title.html(f"""{HEADER_CSS}
+    # CSS pins it to the top bar, so it stays in reach while the chat scrolls
+    st.button("New chat", icon=":material/add_comment:", on_click=new_chat, width="content",
+              disabled=busy, key="new_chat")
+    st.html(f"""{HEADER_CSS}
 <div class="hdr"><span class="sign">IAI</span><h1>Airport Investment Intelligence</h1></div>
 <p class="sub">Ranks and explains US airport renovation opportunities from public BTS and FAA
 data. Every number is computed in code and cited.</p>
