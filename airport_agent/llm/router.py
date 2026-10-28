@@ -13,7 +13,7 @@ from langchain_core.messages import AIMessage
 from pydantic import BaseModel
 
 from airport_agent import config
-from airport_agent.llm.resilience import CircuitBreaker, invoke_with_fallback
+from airport_agent.llm.resilience import AllProvidersFailed, CircuitBreaker, invoke_with_fallback
 
 KEY_ENV = {"openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY",
            "google": "GOOGLE_API_KEY"}
@@ -65,8 +65,9 @@ class LLMRouter:
 
     def review_invoke(self, messages: list, schema: type[BaseModel],
                       exclude_provider: str | None) -> tuple[BaseModel, str]:
-        reviewers = ([(p, m) for p, m in self.reviewer_chain if p != exclude_provider]
-                     or self.reviewer_chain or self.agent_chain)
+        reviewers = [(p, m) for p, m in self.reviewer_chain if p != exclude_provider]
+        if not reviewers:  # never let the writer check itself: the answer shows "Not verified"
+            raise AllProvidersFailed([(exclude_provider or "?", "no other reviewer")])
         chain = [(p, lambda p=p, m=m: self._model(p, m).with_structured_output(schema)
                   .invoke(messages)) for p, m in reviewers]
         return invoke_with_fallback(chain, self.breaker, self.sleep)

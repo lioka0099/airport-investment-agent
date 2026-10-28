@@ -5,7 +5,7 @@ from langchain_core.messages import AIMessage
 from pydantic import BaseModel
 
 from airport_agent import config
-from airport_agent.llm.resilience import CircuitBreaker
+from airport_agent.llm.resilience import AllProvidersFailed, CircuitBreaker
 from airport_agent.llm.router import KEY_ENV, LLMRouter, make_chat_model
 
 KEYS = {"OPENAI_API_KEY": "k", "ANTHROPIC_API_KEY": "k", "GOOGLE_API_KEY": "k"}
@@ -68,9 +68,10 @@ def test_providers_without_keys_are_dropped():
     assert r.agent_invoke([], [])[1] == "anthropic"
 
 
-def test_reviewer_degrades_to_same_provider_when_alone():
+def test_reviewer_never_reviews_its_own_provider():
     r = router({"openai": [Verdict(approved=True)]}, env={"OPENAI_API_KEY": "k"})
-    assert r.review_invoke([], Verdict, exclude_provider="openai")[1] == "openai"
+    with pytest.raises(AllProvidersFailed):
+        r.review_invoke([], Verdict, exclude_provider="openai")
 
 
 def test_no_keys_fails_fast_with_actionable_message():

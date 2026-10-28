@@ -1,4 +1,4 @@
-"""System prompt (spec §5.3, 8 rules) and reviewer prompt."""
+"""System prompt (9 rules) and reviewer prompt."""
 
 SYSTEM = """You are an airport investment analyst assistant for a firm that invests in US airport
 modernization projects. You help analysts find airports where renovation would unlock the most

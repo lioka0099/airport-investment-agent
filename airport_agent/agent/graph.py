@@ -130,7 +130,7 @@ def build_graph(router, tools: list, checkpointer, manifest: dict):
                     replies.append(ToolMessage(result.to_llm_json(), tool_call_id=call["id"],
                                                name=name))
                     continue
-                if name == "rank_airports" and state["weights"]:
+                if name in ("rank_airports", "airport_profile") and state["weights"]:
                     args["weights"] = state["weights"]  # sidebar sliders win over the model's
                 writer({"type": "tool", "tool": name, "args": args})
                 result = run_tool(by_name[name], args)

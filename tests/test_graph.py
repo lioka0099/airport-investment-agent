@@ -171,6 +171,16 @@ def test_sidebar_weights_are_injected_into_rank(store, tools):
     assert s["tool_data"][0]["args"]["weights"] == w
 
 
+def test_sidebar_weights_are_injected_into_profile(store, tools):
+    w = {"demand": 0.2, "growth": 0.5, "terminal": 0.1, "airside": 0.1, "scale": 0.1}
+    model = calls(("airport_profile", {"code": "BOS"}))
+    _, s = run(store, tools, {"openai": [model, RANK, AIMessage(FINAL)],
+                              "anthropic": [Verdict(approved=True)]}, weights=w)
+    assert s["tool_data"][0]["tool"] == "airport_profile"
+    assert s["tool_data"][0]["args"]["weights"] == w
+    assert "custom weights" in " ".join(s["assumptions"])
+
+
 def test_memory_across_turns_with_sqlite_and_per_turn_reset(store, tools, tmp_path):
     saver = make_checkpointer(tmp_path / "chat.sqlite")
     outcomes = {"openai": [RANK, AIMessage(FINAL), AIMessage(OFF_TOPIC)],

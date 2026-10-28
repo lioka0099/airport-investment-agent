@@ -156,6 +156,11 @@ class CodeArgs(BaseModel):
     code: Code
 
 
+class ProfileArgs(CodeArgs):
+    weights: dict[str, float] | None = Field(
+        None, description="Optional weight overrides for demand, growth, terminal, airside, scale")
+
+
 class RouteArgs(BaseModel):
     code: Code
     long_haul_threshold_mi: int = Field(config.LONG_HAUL_MI, ge=500, le=6000)
@@ -332,7 +337,7 @@ def build_tools(store: Store, faa: FaaStatusClient) -> list[StructuredTool]:
         return ToolResult(data={"airports": table, "metrics": COMPARE_METRICS}, facts=facts,
                           findings=fnd, assumptions=assumptions, data_coverage=coverage)
 
-    def airport_profile(code: str) -> ToolResult:
+    def airport_profile(code: str, weights: dict[str, float] | None = None) -> ToolResult:
         if err := unknown([code]):
             return err
         row = m.loc[code]
@@ -345,7 +350,12 @@ def build_tools(store: Store, faa: FaaStatusClient) -> list[StructuredTool]:
             f"to the {config.LF_TARGET:.0%} target: max(0, passengers / target - seats). Seats "
             "are aircraft seats, not terminal capacity.",
             "Delay-cause minutes are attributed to the arrival airport.", ONTIME_NOTE]
-        national = scoring.score_airports(m)
+        try:
+            national = scoring.score_airports(m, weights=weights)
+        except ValueError as exc:
+            return ToolResult(error={"code": "invalid_arguments", "message": str(exc)})
+        if weights:
+            assumptions.append("The national score and rank use your custom weights.")
         if code in national.ranked.index:
             r = national.ranked.loc[code]
             facts |= _facts(code, _with_pctl(r) | {"national_score": r["score"]},
@@ -459,7 +469,7 @@ def build_tools(store: Store, faa: FaaStatusClient) -> list[StructuredTool]:
          "Compare 2-5 airports side by side on traffic, load factor, growth and congestion "
          "(taxi-out, taxi-in, NAS delay, delay rate), with computed comparison findings. Use for "
          "congestion comparisons."),
-        (airport_profile, CodeArgs,
+        (airport_profile, ProfileArgs,
          "Full profile of one airport: all KPIs, unmet demand (seats gap), delay-cause mix, "
          "national rank and classification, and the monthly trend. Use for 'why' questions."),
         (route_mix, RouteArgs,

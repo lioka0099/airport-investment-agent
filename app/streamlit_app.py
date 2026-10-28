@@ -149,7 +149,7 @@ def sidebar(busy: bool) -> None:
         st.subheader("⚖️ Score weights")
         st.caption(SCORE_NOTE)
         for c, default in config.WEIGHTS.items():
-            st.slider(c.capitalize(), 0.0, 1.0, step=0.05, key=f"w_{c}",
+            st.slider(c.capitalize(), 0.0, 1.0, step=0.025, key=f"w_{c}",
                       help=f"{WEIGHT_HELP[c]} Default {default * 100:g}%.", disabled=busy)
         st.button("Reset weights", on_click=reset_weights, disabled=busy)
 

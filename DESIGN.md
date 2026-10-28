@@ -61,7 +61,7 @@ findings, assumptions and data coverage, not only numbers.
 | `rank_airports` | Opportunity Score ranking with focus `overall` / `terminal` / `airside`, sensitivity, exclusions |
 | `compare_airports` | Congestion side by side (taxi-out, taxi-in, NAS delay, delay rate) plus computed findings |
 | `airport_profile` | One airport in full: KPIs, unmet demand (seats gap), delay causes, national rank, trend |
-| `route_mix` | Long-haul share (> 2,400 mi), distance buckets, top destinations |
+| `route_mix` | Long-haul share (≥ 2,400 mi), distance buckets, top destinations |
 | `concentration_risk` | Airline shares, HHI and risk band |
 | `live_status` | Current FAA delays and closures. Context only, never used in scoring |
 
@@ -213,7 +213,7 @@ reliably.
 
 ## 8. Testing and evals
 
-- **227 offline tests** run in CI (GitHub Actions, with ruff). They use a synthetic snapshot and
+- **228 offline tests** run in CI (GitHub Actions, with ruff). They use a synthetic snapshot and
   a scripted fake LLM. Integration tests drive the real graph through a tool loop, a grounding
   fix, a reviewer rejection, a provider fallback on 503, and all providers down.
 - **27 eval cases** (`evals/cases.yaml`) run the real graph on real LLMs. They cover the 4 brief
@@ -226,7 +226,7 @@ reliably.
 
 | Run | Cases | Passed | Verified by reviewer |
 |---|---|---|---|
-| OpenAI agent (latest full run) | 26 | 24 | 24 |
+| OpenAI agent (latest full run, before the risk case) | 26 | 24 | 24 |
 | Anthropic agent (latest full run, before the voice cases were added) | 23 | 23 | 17 |
 
 Most unverified Anthropic answers were refusals and declines, where the reviewer (then Gemini)
